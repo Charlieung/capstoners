@@ -13,7 +13,7 @@ Created on Sat Sep 03 23:50:38 2016
 import os
 import pandas as pd
 
-os.chdir('C:\\Users\\Charles\\OneDrive\\capstoners')
+os.chdir('D:\\Charles\\Documents\\Capstoners Local')
 ########################
 # original files code ##
 ########################
@@ -25,6 +25,11 @@ os.chdir('C:\\Users\\Charles\\OneDrive\\capstoners')
 # Queryied code ##
 ##################
 data = pd.read_csv('AZ_business_join_review.csv')
+#%%
+data[data['text'].isnull()]
+# index 238239 has missing Values
+data.drop(238239, inplace = True)
+
 
 #%%
 ###########################
@@ -37,7 +42,7 @@ import nltk
 lemma = nltk.wordnet.WordNetLemmatizer()
 stopwords = nltk.corpus.stopwords.words('english')
 # Unicode conversion, Lowercase, Strip Numbers, Strip Punctuation and Tokenize
-rev = [nltk.regexp_tokenize(re.sub(r'\d+', '', w.decode('utf-8').lower()), r'\w+') for w in data['text'] if isinstance(w, basestring)]
+rev = [nltk.regexp_tokenize(re.sub(r'\d+', '', w.decode('utf-8').lower()), r'\w+') for w in data['text']]
 #Lemmatize
 words = [[lemma.lemmatize(w) for w in lis if w not in stopwords] for lis in rev]
 
@@ -60,15 +65,16 @@ words = pickle.load(open("AZ_lemma.p", "wb"))
 
 from gensim import corpora
 
+#Create corpus from words within docs.
 reviews = corpora.Dictionary(words)
 #reviews.save('reviews.dict')
 
-# create corpus
+# create list of bag of words
 revCorp = [reviews.doc2bow(w) for w in words]
-'''
+
 # save corpus in Blei's lda-c format because creating corpus takes forever
-# corpora.BleiCorpus.serialize('revCorp.lda-c', revCorp)
-'''
+corpora.BleiCorpus.serialize('revCorp.lda-c', revCorp)
+
 #%%
 #load corpora if starting a new instance
 '''
@@ -135,6 +141,11 @@ topic 9 = barbeque maybe? sauce and pork stuff + postiive words
 
 topic 10 = good food and service words
 
+
+0 + 1 + 2 + 3 + 4 + 6 + 7 + 8 = Food
+
+5 + 9 = Service
+
 '''
 
 
@@ -149,3 +160,31 @@ topicsTab = pd.DataFrame(columns = (0,1,2,3,4,5,6,7,8,9))
 
 for row in range(len(revTopics)):
     topicsTab.loc[row] = [dict(revTopics[row]).get(i,0) for i in range(10)]
+
+#%%
+#Convert to CSV for later loading
+topicsTab.to_csv('AZtopicsTab.csv')
+#%%
+
+#Create total Food %
+food = topicsTab[0]
+
+for col in [1,2,3,4,6,7,8]:
+    food = food.copy() + topicsTab[col]
+    
+#Create total Service %
+service = topicsTab[5] + topicsTab[9]
+
+#Reproportion food/service to sum = 1
+
+adjust = 1 / (food + service)
+food = food.copy() * adjust * data['stars.y']
+service = service.copy() * adjust * data['stars.y']
+
+#%%
+# merge table
+
+data['food.stars'] = food
+data['service.stars'] = service
+#data['tokens'] = words
+data.to_csv('AZdata.csv')
